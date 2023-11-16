@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Диаграмма изменения курса валюты</title>
+    <style>
+        html {
+            height: 100%;
+        }
+
+        body {
+            background: linear-gradient(to bottom, #b72f7b, #4b3f6d);
+            margin: 0;
+            padding: 0;
+            height: 100%;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        body>div {
+            margin: 0 auto;
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #4b3f6d;
+            padding: 40px;
+            border-radius: 10px;
+            border: white solid 3px;
+        }
+
+        select{
+            height: 30px;
+            width: 150px;
+            border-radius: 5px;
+
+        }
+    </style>
+</head>
+
+<body>
+    <div>
+        <select id="currencySelect">
+            <option value="USD">Доллар США</option>
+            <option value="EUR">Евро</option>
+        </select>
+
+        <canvas id="currencyChart" width="800" height="400"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('currencyChart');
+        const ctx = canvas.getContext('2d');
+        let chartWidth = canvas.width;
+
+        const maxRate = 65;
+        const minRate = 0;
+        const barWidth = 10;
+        const spacing = 40;
+        const chartHeight = canvas.height - 40;
+        let x = 40;
+
+        const currencySelect = document.getElementById('currencySelect');
+        currencySelect.addEventListener('change', updateChart);
+
+        function updateChart() {
+            const selectedCurrency = currencySelect.value;
+            const currentDate = new Date();
+            const currentYear = currentDate.getFullYear();
+            const currentMonth = currentDate.getMonth() + 1;
+            const startDate = `${currentYear}${currentMonth.toString().padStart(2, '0')}01`;
+            x = 40;
+            chartWidth = barWidth * (currentDate.getDate()) + spacing * (currentDate.getDate());
+            canvas.width = chartWidth + 20;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const rates = [];
+
+            for (let day = 1; day <= currentDate.getDate(); day++) {
+                const formattedDate = `${currentYear}${currentMonth.toString().padStart(2, '0')}${day.toString().padStart(2, '0')}`;
+
+                fetch(`https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?date=${formattedDate}&json`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const rateData = data.find(item => item.cc === selectedCurrency);
+                        if (rateData) {
+                            rates.push(rateData);
+                        }
+                        if (rates.length === currentDate.getDate()) {
+                            rates.sort((a, b) => a.exchangedate.localeCompare(b.exchangedate));
+                            for (let i = 0; i < rates.length; i++) {
+                                const rate = rates[i].rate;
+                                const barHeight = (rate - minRate) / (maxRate - minRate) * chartHeight;
+                                const y = canvas.height - barHeight - 20;
+
+                                ctx.fillStyle = 'white';
+                                ctx.fillRect(x, y, barWidth, barHeight);
+
+                                const formattedDay = rates[i].exchangedate.slice(0, 5); 
+                                ctx.fillStyle = 'white';
+                                ctx.fillText(formattedDay, x - barWidth / 2, canvas.height - 10);
+
+                                x += barWidth + spacing;
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Ошибка при загрузке данных:', error);
+                    });
+            }
+
+            const yAxisStep = 5;
+            ctx.fillStyle = 'white';
+            ctx.textBaseline = 'middle';
+            for (let i = 0; i <= maxRate; i += yAxisStep) {
+                const y = canvas.height - (i / maxRate) * chartHeight - 20;
+                ctx.fillText(i, 20, y);
+            }
+        }
+
+        updateChart();
+    </script>
+</body>
+
+</html>
